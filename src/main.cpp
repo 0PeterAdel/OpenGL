@@ -20,30 +20,32 @@ using namespace std;
 
 // ده المسئول عن معالج الاحداثيات
 const char *vertex_shader_source_code = R"(
-    #version 330 core
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aColor;
+out vec3 vColor;
 
-    layout(location = 0) in vec3 aPos;
-
-    void main()
-    {
-        gl_Position = vec4(aPos, 1.0);
-    }
+void main()
+{
+    gl_Position = vec4(aPos, 1.0);
+    vColor = aColor;
+}
 )";
 
-// ده المسئول عن معالج البكسل الواحد وعرضه علي الشاشة
 const char *fragment_shader_source_code = R"(
-    #version 330 core
-    out vec4 FragColor;
+#version 330 core
+out vec4 FragColor;
+in vec3 vColor;
 
-    int main()
-    {
-        FragColor = vec4(1.0, 0.5, 0.2, 1.0);
-    }
+void main()
+{
+    FragColor = vec4(vColor, 1.0);
+}
 )";
 
 // المقاسات الافتراضية عندنا للنافذة
-const int Dwidth = 800;
-const int DHeight = 600;
+const int DWIDTH = 800;
+const int DHEIGHT = 600;
 
 
 int main(void)
@@ -73,22 +75,37 @@ int main(void)
 
 
     // هنا هنبدأ ننشئ الويندو او النافذة اللي هنشتغل عليها
-    GLFWwindow *window1 = glfwCreateWindow(Dwidth, DHeight, "Project Name", NULL, NULL);
+    GLFWwindow *window1 = glfwCreateWindow(DWIDTH, DHEIGHT, "Project Name", nullptr, nullptr);
 
     // هنعمل تست نشوف هل تم انشاء النافذة بواسطة البرنامج
-    if (window1 == NULL)
+    if (!window1)
     {
         // بنطبع رسالة
         cerr << "Failed to Create a window\n";
 
         // بنعمل تدمير للمكتبة في الميموري
         glfwTerminate();
+
+        return -1;
     }
 
 
     // بعد كده هنعمل اي لو عندنا اكتر من نافذة او ويندو لازم نختار منهم واحدة نشتغل عليها
     // عن طريق الخطوة دي بنحدد النافذة اللي هنشتغل عليها في الوقت الحالي
     glfwMakeContextCurrent(window1);
+
+
+
+
+    // هنعمل استدعاء لوظائف المكتبةة و تحميلها في الميموري عن طريق ال glad
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        cerr << "Can't Load functions using glad\n";
+        glfwDestroyWindow(window1);
+        glfwTerminate();
+        return -1;
+    }
+
 
 
 
@@ -102,19 +119,9 @@ int main(void)
         0,
         0, 
         // هنرسم في نطاق قد اي بندي ال height , width
-        Dwidth,
-        DHeight
+        DWIDTH,
+        DHEIGHT
     );
-
-
-    // هنعمل استدعاء لوظائف المكتبةة و تحميلها في الميموري عن طريق ال glad
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        cerr << "Can't Load functions using glad\n";
-        glfwDestroyWindow(window1);
-        glfwTerminate();
-        return -1;
-    }
 
 
     // نبدأ انشاء البرنامج الخاص بال shaders
@@ -234,18 +241,19 @@ int main(void)
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     // Configure vertex attribute
-    GLsizei nbytes = 6 * sizeof(float);
+    GLsizei stride = 6 * sizeof(float);
+
     glVertexAttribPointer(
         0,                // attribute index
         3,                // size (x,y,z)
         GL_FLOAT,         // data type
         GL_FALSE,         // normalize
-        nbytes,// stride
+        stride,// stride
         (void*)0          // offset
     );
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
     // Point again to the start of the VBO, VAO
@@ -256,9 +264,26 @@ int main(void)
     // هنبدأ نرسم بقا
     while (!glfwWindowShouldClose(window1))
     {
-        
+        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glUseProgram(ShaderProgram);
+        glBindVertexArray(VAO);
+
+        // نرسم 18 نقطة (3 مستطيلات * 6 نقاط لكل مستطيل)
+        glDrawArrays(GL_TRIANGLES, 0, 18);
+
+        glfwSwapBuffers(window1);
+        glfwPollEvents();
     }
     
+    
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteProgram(ShaderProgram);
+    glfwDestroyWindow(window1);
+    glfwTerminate();
 
+    return 0;
 }
 
