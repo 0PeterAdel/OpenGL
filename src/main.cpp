@@ -21,6 +21,8 @@
 #include "../include/flags/BahamasFlag.hpp"
 #include "../include/flags/BrazilFlag.hpp"
 
+#include "../include/flags/ImageEdgeFlag.hpp"
+
 
 // Dear ImGui
 #include "../imgui/imgui.h"
@@ -126,6 +128,8 @@ void main() {
 }
 )";
 
+
+
 int main() {
     // 1) GLFW + Window
     if (!glfwInit()) {
@@ -136,6 +140,8 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    glfwWindowHint(GLFW_STENCIL_BITS, 8);
 
     GLFWwindow* window = glfwCreateWindow(W, H, "Pixel Pioneers Team - Flags", nullptr, nullptr);
     if (!window) {
@@ -221,6 +227,7 @@ int main() {
     manager.registerFlag(new BahamasFlag());
     manager.registerFlag(new BrazilFlag());
 
+    manager.registerFlag(new ImageEdgeFlag("assets/eg.png"));
     string selected = "Landing";
     vector<string> menuItems = {
         "Landing",
@@ -233,7 +240,8 @@ int main() {
         "UAE",
         "Germany",
         "Bahamas",
-        "Brazil"
+        "Brazil",
+        "ImageEdges"
     };
 
     glEnable(GL_BLEND);
@@ -354,7 +362,8 @@ int main() {
         // ================= خلفية الـ Landing: تملأ الشاشة كلها =================
         glViewport(0, 0, W, H);  // نرجّع الـ viewport على كامل النافذة
         glClearColor(0.02f, 0.02f, 0.03f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
 
         glUseProgram(landingProg);
         GLint tLoc = glGetUniformLocation(landingProg, "uTime");

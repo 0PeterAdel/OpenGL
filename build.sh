@@ -33,7 +33,7 @@ echo -e "${YELLOW}🔧 Step 2: Compiling source files...${RESET}"
 
 g++ -std=c++17 \
 src/main.cpp src/glad.c \
-$FLAGS \
+$FLAGS src/stb_image_impl.cpp\
 imgui/imgui.cpp imgui/imgui_draw.cpp imgui/imgui_tables.cpp imgui/imgui_widgets.cpp \
 imgui/backends/imgui_impl_glfw.cpp imgui/backends/imgui_impl_opengl3.cpp \
 -Iinclude -Iimgui \
