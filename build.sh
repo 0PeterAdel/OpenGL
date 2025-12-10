@@ -22,7 +22,7 @@ echo -e "${YELLOW}🔧 Step 1: Compiling source files...${RESET}"
 
 g++ -std=c++17 \
 src/main.cpp src/glad.c \
-src/flags/EgyptFlag.cpp src/flags/PirateFlag.cpp \
+src/flags/EgyptFlag.cpp src/flags/PirateFlag.cpp src/flags/GabonFlag.cpp src/flags/JapanFlag.cpp \
 imgui/imgui.cpp imgui/imgui_draw.cpp imgui/imgui_tables.cpp imgui/imgui_widgets.cpp \
 imgui/backends/imgui_impl_glfw.cpp imgui/backends/imgui_impl_opengl3.cpp \
 -Iinclude -Iimgui \
