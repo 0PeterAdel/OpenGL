@@ -11,6 +11,8 @@
 #include "../include/Core.hpp"
 #include "../include/flags/EgyptEagleFlag.hpp"
 #include "../include/flags/PirateFlag.hpp"
+#include "../include/flags/GabonFlag.hpp"
+#include "../include/flags/JapanFlag.hpp"
 
 // Dear ImGui
 #include "../imgui/imgui.h"
@@ -202,12 +204,16 @@ int main() {
     FlagManager manager;
     manager.registerFlag(new EgyptEagleFlag());
     manager.registerFlag(new PirateFlag());
+    manager.registerFlag(new GabonFlag()); 
+    manager.registerFlag(new JapanFlag());
 
     string selected = "Landing";
     vector<string> menuItems = {
         "Landing",
         "Egypt",
-        "Pirates"
+        "Pirates",
+        "Gabon",
+        "Japan"
     };
 
     glEnable(GL_BLEND);
@@ -316,6 +322,8 @@ int main() {
             ImGui::TextWrapped("Egypt Flag with Eagle emblem (OpenGL polygons).");
         } else if (selected == "Pirates") {
             ImGui::TextWrapped("Pirate Flag: skull & crossbones drawn with triangles.");
+        } else if (selected == "Gabon") {
+            ImGui::TextWrapped("Gabon Flag: three horizontal stripes (Green, Yellow, Blue) drawn with OpenGL.");
         }
         ImGui::End();
 
