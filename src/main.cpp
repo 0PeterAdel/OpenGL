@@ -8,11 +8,17 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+// Core and Flags
 #include "../include/Core.hpp"
 #include "../include/flags/EgyptEagleFlag.hpp"
 #include "../include/flags/PirateFlag.hpp"
 #include "../include/flags/GabonFlag.hpp"
 #include "../include/flags/JapanFlag.hpp"
+#include "../include/flags/AustriaFlag.hpp"
+#include "../include/flags/RomaniaFlag.hpp"
+#include "../include/flags/UAEFlag.hpp"
+#include "../include/flags/GermanyFlag.hpp"
+
 
 // Dear ImGui
 #include "../imgui/imgui.h"
@@ -206,6 +212,10 @@ int main() {
     manager.registerFlag(new PirateFlag());
     manager.registerFlag(new GabonFlag()); 
     manager.registerFlag(new JapanFlag());
+    manager.registerFlag(new AustriaFlag());
+    manager.registerFlag(new RomaniaFlag());
+    manager.registerFlag(new UAEFlag());
+    manager.registerFlag(new GermanyFlag());
 
     string selected = "Landing";
     vector<string> menuItems = {
@@ -213,7 +223,11 @@ int main() {
         "Egypt",
         "Pirates",
         "Gabon",
-        "Japan"
+        "Japan",
+        "Austria",
+        "Romania",
+        "UAE",
+        "Germany"
     };
 
     glEnable(GL_BLEND);
