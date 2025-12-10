@@ -19,8 +19,8 @@
 
 using namespace std;
 
-const int W = 1000;
-const int H = 700;
+const int W = 1280;
+const int H = 800;
 
 // ---------- helpers: compile / link shaders ----------
 GLuint compileShader(GLenum type, const char* src) {
@@ -56,7 +56,7 @@ GLuint createProgram(const char* vsSrc, const char* fsSrc) {
     return prog;
 }
 
-// ---------- landing shaders (نفس اللي كان قبل) ----------
+// ---------- landing shaders ----------
 const char* landing_vs = R"(
 #version 330 core
 layout(location = 0) in vec2 aPos;
@@ -95,7 +95,7 @@ void main(){
 }
 )";
 
-// ---------- flag shaders (positions + color، بدون موجة) ----------
+// ---------- flag shaders (positions + color) ----------
 const char* flag_vs = R"(
 #version 330 core
 layout(location = 0) in vec3 aPos;
@@ -149,11 +149,25 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+
+    // Load font with Unicode support
+    ImFont* mainFont = io.Fonts->AddFontFromFileTTF(
+        "fonts/NotoSansArabic-Regular.ttf",   // Font file path
+        20.0f,                                // Font size
+        nullptr,
+        io.Fonts->GetGlyphRangesCyrillic()    // Glyph ranges for Unicode support
+    );
+    if (!mainFont) {
+        std::cerr << "Failed to load Arabic font\n";
+    }
+
+
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 
-    // 4) برامج الشيدر
+    // 4) Shader programs
     GLuint landingProg = createProgram(landing_vs, landing_fs);
     GLuint flagProg    = createProgram(flag_vs,    flag_fs);
 
@@ -219,7 +233,7 @@ int main() {
         float tNow = (float)glfwGetTime();
         float dt   = tNow - startTime;
 
-        // TopBar: اسم التيم
+        // TopBar: Team name display
         ImGui::SetNextWindowPos(ImVec2(0,0));
         ImGui::SetNextWindowSize(ImVec2(W,80));
         ImGuiWindowFlags topFlags =
@@ -278,7 +292,7 @@ int main() {
         ImGui::SetNextWindowPos(ImVec2(10,84));
         ImGui::SetNextWindowSize(ImVec2(260, H-94));
         ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-        ImGui::Text("اختر Mode / علم:");
+        ImGui::Text("Select Mode / Flag:");
         ImGui::Separator();
         for (auto& name : menuItems) {
             if (ImGui::Selectable(name.c_str(), selected == name)) {
@@ -296,7 +310,7 @@ int main() {
         if (selected == "Landing") {
             ImGui::TextWrapped(
                 "Welcome to Pixel Pioneers Team\n"
-                "Landing Page ملونة متحركة بالـ Fragment Shader."
+                "Colorful animated Landing Page using Fragment Shader."
             );
         } else if (selected == "Egypt") {
             ImGui::TextWrapped("Egypt Flag with Eagle emblem (OpenGL polygons).");
@@ -306,27 +320,47 @@ int main() {
         ImGui::End();
 
         // ---------- Render OpenGL scene ----------
+        // ---------- Render OpenGL scene ----------
         ImGui::Render();
 
+        // ================= خلفية الـ Landing: تملأ الشاشة كلها =================
+        glViewport(0, 0, W, H);  // نرجّع الـ viewport على كامل النافذة
         glClearColor(0.02f, 0.02f, 0.03f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        if (selected == "Landing") {
-            glUseProgram(landingProg);
-            GLint tLoc = glGetUniformLocation(landingProg, "uTime");
-            if (tLoc >= 0) glUniform1f(tLoc, dt);
-            glBindVertexArray(landVAO);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-        } else {
+        glUseProgram(landingProg);
+        GLint tLoc = glGetUniformLocation(landingProg, "uTime");
+        if (tLoc >= 0) glUniform1f(tLoc, dt);   // نستخدم dt اللي فوق
+
+        glBindVertexArray(landVAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+
+        // ================= العلم: في جزء صغير مخصص =================
+        if (selected != "Landing") {
+            const int topBarH      = 84;   // بعد الـ TopBar
+            const int leftPanelW   = 280;  // منيو
+            const int rightPanelW  = 280;  // Info
+            const int bottomMargin = 10;
+
+            int vpX = leftPanelW;
+            int vpY = topBarH;
+            int vpW = W - leftPanelW - rightPanelW;
+            int vpH = H - topBarH - bottomMargin;
+
+            glViewport(vpX, vpY, vpW, vpH);
+
             glUseProgram(flagProg);
             Flag* f = manager.get(selected);
             if (f) f->draw();
         }
 
-        // ---------- ImGui on top ----------
+        // ---------- ImGui فوق كل حاجة ----------
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
+
+
+        
     }
 
     // cleanup
