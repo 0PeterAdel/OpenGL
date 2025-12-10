@@ -1,12 +1,12 @@
 // src/flags/PirateFlag.cpp
-// تعريف علم القراصنة  باستخدام OpenGL + Mesh   //  بعد عناء شاق
-
+// علم القراصنة - المرحلة 2:
+// إطار أسود + فتحات مثلثية مفرّغة + سيفين متقاطعين باللون الأبيض
 
 #include "../../include/flags/PirateFlag.hpp"
 #include <glad/glad.h>
+#include <vector>
 #include <cmath>
 #include <iostream>
-#include <vector>
 
 using namespace std;
 
@@ -16,206 +16,337 @@ PirateFlag::PirateFlag()
 }
 
 /*
-    Strategy:
-      - background rectangle (black)
-      - skull:
-         * head: circle approx (triangle fan) in white
-         * eye sockets: black circles (we cut over by drawing smaller black discs)
-         * nose: black triangle
-         * jaw: polygon made of triangles
-         * teeth: small rectangles/triangles
-         * bandana: triangular strips (colored slightly grey/white)
-      - crossed cutlasses:
-         * approximate blades by thin curved strips (series of quads)
-         * handles as small rectangles
-      - edges: a few triangular "rips" at right border for tattered effect
+    الفكرة:
+      - init():
+          * نبني Mesh يحتوي فقط المثلثات اللي هتكون فتحات (شفافة).
+          * نخزن حدود المستطيل الأسود (left/right/top/bottom).
+      - draw():
+          1) نستخدم الـ stencil لرسم المثلثات كـ "ثقوب".
+          2) نرسم المستطيل الأسود في الأماكن اللي مفيهاش ثقوب.
+          3) مع بقاء نفس الـ stencil (clip)، نرسم السيفين المتقاطعين
+             باللون الأبيض داخل مساحة العلم فقط (بدون ملمس الإطار).
 */
+
 void PirateFlag::init() {
     mesh.vertices.clear();
     mesh.indices.clear();
 
-    // colors
-    float black[] = {0.01f,0.01f,0.01f};
-    float white[] = {1.0f,1.0f,1.0f};
-    float grey[]  = {0.9f,0.9f,0.9f};
-    float bone[]  = {0.98f,0.97f,0.95f};
-
-    // 1) Background big rectangle (black)
-    float left=-0.9f, right=0.9f, top=0.7f, bottom=-0.7f;
-    float bg[] = {
-        left, bottom, 0.0f,  black[0], black[1], black[2],
-        right, bottom,0.0f,  black[0], black[1], black[2],
-        left, top,    0.0f,  black[0], black[1], black[2],
-
-        right, top,   0.0f,  black[0], black[1], black[2],
-        left, top,    0.0f,  black[0], black[1], black[2],
-        right, bottom,0.0f,  black[0], black[1], black[2],
+    // helper: إضافة vertex واحد
+    auto pushVertex = [&](float x, float y, float z,
+                          float r, float g, float b) {
+        mesh.vertices.push_back(x);
+        mesh.vertices.push_back(y);
+        mesh.vertices.push_back(z);
+        mesh.vertices.push_back(r);
+        mesh.vertices.push_back(g);
+        mesh.vertices.push_back(b);
     };
-    mesh.vertices.assign(bg, bg + sizeof(bg)/sizeof(float));
 
-    // helper lambdas to add shapes
-    // helper struct to add shapes (supports overloading)
-    struct PushTriangleHelper {
-        std::vector<float>& vertices;
-
-        // 18 args: per-vertex color
-        void operator()(float x1,float y1,float z1, float r1,float g1,float b1,
-                        float x2,float y2,float z2, float r2,float g2,float b2,
-                        float x3,float y3,float z3, float r3,float g3,float b3) {
-            vertices.push_back(x1); vertices.push_back(y1); vertices.push_back(z1);
-            vertices.push_back(r1); vertices.push_back(g1); vertices.push_back(b1);
-            vertices.push_back(x2); vertices.push_back(y2); vertices.push_back(z2);
-            vertices.push_back(r2); vertices.push_back(g2); vertices.push_back(b2);
-            vertices.push_back(x3); vertices.push_back(y3); vertices.push_back(z3);
-            vertices.push_back(r3); vertices.push_back(g3); vertices.push_back(b3);
-        }
-
-        // 12 args: uniform color (delegates to 18-arg version)
-        // usage: x1,y1,z1, r,g,b, x2,y2,z2, x3,y3,z3
-        // Note: The calls in the file seem to be:
-        // pushTriangle(v1_x, v1_y, v1_z, r, g, b, 
-        //              v2_x, v2_y, v2_z, 
-        //              v3_x, v3_y, v3_z);
-        void operator()(float x1,float y1,float z1, float r,float g,float b,
-                        float x2,float y2,float z2,
-                        float x3,float y3,float z3) {
-            (*this)(x1,y1,z1, r,g,b,
-                    x2,y2,z2, r,g,b,
-                    x3,y3,z3, r,g,b);
-        }
+    // helper: إضافة مثلث واحد بلون ثابت
+    auto pushTriangle = [&](float x1,float y1,float z1,
+                            float x2,float y2,float z2,
+                            float x3,float y3,float z3,
+                            float r,float g,float b) {
+        pushVertex(x1,y1,z1,r,g,b);
+        pushVertex(x2,y2,z2,r,g,b);
+        pushVertex(x3,y3,z3,r,g,b);
     };
-    PushTriangleHelper pushTriangle{mesh.vertices};
 
-    // 2) Skull head (triangle fan)
-    float cx = 0.0f, cy = 0.12f;
-    float headR = 0.18f;
-    int segs = 48;
-    // center of fan (one vertex)
-    mesh.vertices.push_back(cx); mesh.vertices.push_back(cy); mesh.vertices.push_back(0.02f);
-    mesh.vertices.push_back(white[0]); mesh.vertices.push_back(white[1]); mesh.vertices.push_back(white[2]);
-    for(int i=0;i<=segs;i++){
-        float a = (float)i/segs * 2.0f * 3.14159265f;
-        float x = cx + cosf(a) * headR;
-        float y = cy + sinf(a) * headR * 0.95f; // slightly flattened vertically
-        mesh.vertices.push_back(x); mesh.vertices.push_back(y); mesh.vertices.push_back(0.02f);
-        mesh.vertices.push_back(white[0]); mesh.vertices.push_back(white[1]); mesh.vertices.push_back(white[2]);
+    // مش مهم اللون، لأننا بنستخدم المثلثات في الـ stencil فقط
+    const float dummyR = 1.0f, dummyG = 1.0f, dummyB = 1.0f;
+
+    // حدود العلم (مستطيل داخلي) - هنستخدمها في draw()
+    float left   = -0.9f;
+    float right  =  0.9f;
+    float top    =  0.6f;
+    float bottom = -0.6f;
+
+    // ================
+    // فتحات أعلى العلم
+    // ================
+    struct TopCut { float x0, x1, depth; };
+    std::vector<TopCut> topCuts = {
+        { -0.65f, -0.45f, 0.10f },
+        { -0.15f,  0.05f, 0.06f },
+        {  0.30f,  0.55f, 0.08f }
+    };
+    for (auto &c : topCuts) {
+        float mid = 0.5f*(c.x0 + c.x1);
+        float apexY = top - c.depth;        // داخل العلم
+        pushTriangle(c.x0, top,   0.0f,
+                     c.x1, top,   0.0f,
+                     mid,  apexY, 0.0f,
+                     dummyR,dummyG,dummyB);
     }
 
-    // 3) Eye sockets (draw black discs on top of head) => add small black fan (this will overlay visually)
-    auto addDisc = [&](float sx,float sy,float r, int segsLocal, float cr, float cg, float cb){
-        // center
-        mesh.vertices.push_back(sx); mesh.vertices.push_back(sy); mesh.vertices.push_back(0.03f);
-        mesh.vertices.push_back(cr); mesh.vertices.push_back(cg); mesh.vertices.push_back(cb);
-        for(int i=0;i<=segsLocal;i++){
-            float a = (float)i/segsLocal * 2.0f * 3.14159265f;
-            float x = sx + cosf(a) * r;
-            float y = sy + sinf(a) * r;
-            mesh.vertices.push_back(x); mesh.vertices.push_back(y); mesh.vertices.push_back(0.03f);
-            mesh.vertices.push_back(cr); mesh.vertices.push_back(cg); mesh.vertices.push_back(cb);
-        }
+    // ================
+    // فتحات أسفل العلم
+    // ================
+    struct BottomCut { float x0, x1, depth; };
+    std::vector<BottomCut> bottomCuts = {
+        { -0.55f, -0.30f, 0.08f },
+        {  0.00f,  0.25f, 0.06f },
+        {  0.50f,  0.75f, 0.10f }
     };
-    addDisc(-0.06f, cy+0.03f, 0.035f, 24, black[0], black[1], black[2]); // left eye hole
-    addDisc( 0.06f, cy+0.03f, 0.035f, 24, black[0], black[1], black[2]); // right eye hole
-
-    // 4) nose (small inverted triangle)
-    pushTriangle(0.0f, cy-0.03f, 0.02f, white[0],white[1],white[2],
-                 -0.02f, cy+0.01f, 0.02f,
-                  0.02f, cy+0.01f, 0.02f);
-
-    // 5) jaw (rectangle-ish) + teeth
-    // jaw rectangle bottom
-    float jawTop = cy - 0.06f;
-    float jawBottom = cy - 0.16f;
-    float jawL = -0.12f, jawR = 0.12f;
-    // two triangles for jaw
-    pushTriangle(jawL, jawBottom, 0.02f, white[0],white[1],white[2],
-                 jawR, jawBottom, 0.02f,
-                 jawL, jawTop, 0.02f);
-    pushTriangle(jawR, jawBottom, 0.02f, white[0],white[1],white[2],
-                 jawR, jawTop, 0.02f,
-                 jawL, jawTop, 0.02f);
-
-    // teeth: small vertical rectangles (approx with triangles)
-    float tx = -0.06f;
-    for(int i=0;i<5;i++){
-        float w = 0.02f;
-        float h = 0.03f;
-        float x0 = tx + i*0.03f;
-        pushTriangle(x0, jawTop, 0.03f, black[0],black[1],black[2],
-                    x0+w, jawTop, 0.03f,
-                    x0, jawTop+h, 0.03f);
-        pushTriangle(x0+w, jawTop, 0.03f, black[0],black[1],black[2],
-                    x0+w, jawTop+h, 0.03f,
-                    x0, jawTop+h, 0.03f);
+    for (auto &c : bottomCuts) {
+        float mid = 0.5f*(c.x0 + c.x1);
+        float apexY = bottom + c.depth;     // داخل العلم
+        pushTriangle(c.x0, bottom, 0.0f,
+                     c.x1, bottom, 0.0f,
+                     mid,  apexY,  0.0f,
+                     dummyR,dummyG,dummyB);
     }
 
-    // 6) bandana (a triangular strip above forehead)
-    pushTriangle(-0.18f, cy+0.12f, 0.02f, grey[0],grey[1],grey[2],
-                 0.18f, cy+0.12f, 0.02f,
-                 0.00f, cy+0.06f, 0.02f);
-    // knot tail (two small triangles)
-    pushTriangle(0.15f, cy+0.10f, 0.02f, grey[0],grey[1],grey[2],
-                 0.22f, cy+0.08f, 0.02f,
-                 0.18f, cy+0.04f, 0.02f);
-
-    // 7) Crossed cutlasses (approx curved blades using multiple quads)
-    // We'll add two blade strips using several small quads to suggest curvature.
-    auto addBlade = [&](float cx1,float cy1,float angle,float len,float thickness,float r,float g,float b){
-        // create N segments
-        int N=8;
-        for(int i=0;i<N;i++){
-            float t0 = (float)i/(float)N;
-            float t1 = (float)(i+1)/(float)N;
-            // base along blade centerline
-            float x0 = cx1 + cosf(angle) * t0 * len - sinf(angle) * 0.05f * sinf(t0*3.14f);
-            float y0 = cy1 + sinf(angle) * t0 * len + cosf(angle) * 0.05f * sinf(t0*3.14f);
-            float x1 = cx1 + cosf(angle) * t1 * len - sinf(angle) * 0.05f * sinf(t1*3.14f);
-            float y1 = cy1 + sinf(angle) * t1 * len + cosf(angle) * 0.05f * sinf(t1*3.14f);
-            // perpendicular
-            float nx = -sinf(angle);
-            float ny = cosf(angle);
-            float w = thickness * (1.0f - t0*0.6f);
-            // quad as two triangles
-            pushTriangle(x0 + nx*w, y0 + ny*w, 0.015f, r,g,b,
-                        x1 + nx*w, y1 + ny*w, 0.015f,
-                        x0 - nx*w, y0 - ny*w, 0.015f);
-            pushTriangle(x1 + nx*w, y1 + ny*w, 0.015f, r,g,b,
-                        x1 - nx*w, y1 - ny*w, 0.015f,
-                        x0 - nx*w, y0 - ny*w, 0.015f);
-        }
-        // handle (small rectangle near start)
-        float hx = cx1, hy = cy1;
-        pushTriangle(hx - 0.04f, hy - 0.02f, 0.015f, 0.18f,0.12f,0.06f,
-                    hx + 0.04f, hy - 0.02f, 0.015f,
-                    hx - 0.04f, hy + 0.02f, 0.015f);
-        pushTriangle(hx + 0.04f, hy - 0.02f, 0.015f, 0.18f,0.12f,0.06f,
-                    hx + 0.04f, hy + 0.02f, 0.015f,
-                    hx - 0.04f, hy + 0.02f, 0.015f);
+    // ================
+    // فتحات على اليمين
+    // ================
+    struct SideCut { float y0, y1, depth; };
+    float xr = right;
+    std::vector<SideCut> rightCuts = {
+        {  0.45f,  0.25f, 0.10f },
+        {  0.05f, -0.10f, 0.07f },
+        { -0.30f, -0.50f, 0.12f }
     };
-    // add two blades crossing under the jaw
-    addBlade(-0.35f, -0.07f, 0.78f, 0.9f, 0.02f, bone[0],bone[1],bone[2]); // left-to-right
-    addBlade( 0.35f, -0.07f, -0.78f,0.9f, 0.02f, bone[0],bone[1],bone[2]); // right-to-left
-
-    // 8) tattered right edge: small triangular cuts
-    for(int i=0;i<6;i++){
-        float y0 = top - i*0.25f;
-        float y1 = y0 - 0.12f;
-        float x0 = right - 0.02f;
-        float x1 = right - 0.14f - 0.03f * (i%2);
-        pushTriangle(x0,y0,0.01f, black[0],black[1],black[2],
-                    x1,y1,0.01f, black[0],black[1],black[2],
-                    x0,y1,0.01f, black[0],black[1],black[2]);
+    for (auto &c : rightCuts) {
+        float ym = 0.5f*(c.y0 + c.y1);
+        float apexX = xr - c.depth;         // داخل العلم
+        pushTriangle(xr,    c.y0, 0.0f,
+                     xr,    c.y1, 0.0f,
+                     apexX, ym,   0.0f,
+                     dummyR,dummyG,dummyB);
     }
 
-    // build indices sequentially
-    unsigned int totalVerts = (unsigned int)(mesh.vertices.size()/6);
-    for(unsigned int i=0;i<totalVerts;i++) mesh.indices.push_back(i);
+    // ================
+    // فتحات على الشمال
+    // ================
+    float xl = left;
+    std::vector<SideCut> leftCuts = {
+        {  0.35f,  0.15f, 0.08f },
+        { -0.05f, -0.25f, 0.06f }
+    };
+    for (auto &c : leftCuts) {
+        float ym = 0.5f*(c.y0 + c.y1);
+        float apexX = xl + c.depth;         // داخل العلم
+        pushTriangle(xl,    c.y0, 0.0f,
+                     xl,    c.y1, 0.0f,
+                     apexX, ym,   0.0f,
+                     dummyR,dummyG,dummyB);
+    }
+
+    // indices: كل 3 أرقام = vertex واحد (هنا نرسم triangles قائمة بدون إعادة استخدام)
+    unsigned int totalVerts = static_cast<unsigned int>(mesh.vertices.size() / 6);
+    for (unsigned int i = 0; i < totalVerts; ++i)
+        mesh.indices.push_back(i);
+
+    // نخزن الحدود في الكلاس
+    this->left   = left;
+    this->right  = right;
+    this->top    = top;
+    this->bottom = bottom;
 
     mesh.upload();
 }
 
 void PirateFlag::draw() {
+    // =========================
+    // 1) ضبط الـ stencil للفتحات
+    // =========================
+    glEnable(GL_STENCIL_TEST);
+
+    glStencilMask(0xFF);
+    glStencilFunc(GL_ALWAYS, 1, 0xFF);
+    glStencilOp(GL_REPLACE, GL_REPLACE, GL_REPLACE);
+
+    // لا نكتب ألوان الآن (نكتب فقط في الـ stencil)
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
     glBindVertexArray(mesh.VAO);
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(mesh.indices.size()), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES,
+                   static_cast<GLsizei>(mesh.indices.size()),
+                   GL_UNSIGNED_INT,
+                   0);
     glBindVertexArray(0);
+
+    // =========================
+    // 2) المستطيل الأسود (جسم العلم) مع احترام الـ stencil
+    // =========================
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glStencilFunc(GL_EQUAL, 0, 0xFF);          // ارسم فقط حيث stencil == 0
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    glStencilMask(0x00);                       // لا نغيّر الـ stencil
+
+    float flagR = 0.0f, flagG = 0.0f, flagB = 0.0f;
+    float quad[] = {
+        left,  bottom, 0.0f,  flagR, flagG, flagB,
+        right, bottom, 0.0f,  flagR, flagG, flagB,
+        right, top,    0.0f,  flagR, flagG, flagB,
+        left,  top,    0.0f,  flagR, flagG, flagB
+    };
+    unsigned int idx[] = {0,1,2, 2,3,0};
+
+    GLuint vao, vbo, ebo;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glGenBuffers(1, &ebo);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(idx), idx, GL_STATIC_DRAW);
+
+    GLsizei stride = 6 * sizeof(float);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3*sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+
+    glDeleteBuffers(1, &vbo);
+    glDeleteBuffers(1, &ebo);
+    glDeleteVertexArrays(1, &vao);
+
+    // =========================
+    // 3) رسم السيوف المتقاطعة (يمين + يسار) - كل واحد معكوس بالنسبة للمحور
+    // =========================
+    auto drawBlade = [&](float baseStartX, float baseStartY,
+                         float angleDeg, float length,
+                         float thickness, bool /*mirrorUnused*/) // mirror لم نعد نحتاجه
+    {
+        const float PI = 3.14159265f;
+        float angle = angleDeg * PI / 180.0f;
+
+        // ألوان النصل والقبضة (قبضة فاتحة أكثر لتمييزها على الأسود)
+        float bladeR = 1.0f, bladeG = 1.0f, bladeB = 1.0f;
+        float handleR = 0.92f, handleG = 0.74f, handleB = 0.45f; // لون مقبض واضح و فاتح
+
+        std::vector<float> verts;
+        std::vector<unsigned int> indices;
+
+        auto pushV = [&](float x,float y,float z,float r,float g,float b){
+            verts.push_back(x); verts.push_back(y); verts.push_back(z);
+            verts.push_back(r); verts.push_back(g); verts.push_back(b);
+        };
+
+        auto addQuad = [&](float x0,float y0,
+                           float x1,float y1,
+                           float x2,float y2,
+                           float x3,float y3,
+                           float z,float r,float g,float b){
+            unsigned int base = static_cast<unsigned int>(verts.size()/6);
+            pushV(x0,y0,z,r,g,b);
+            pushV(x1,y1,z,r,g,b);
+            pushV(x2,y2,z,r,g,b);
+            pushV(x3,y3,z,r,g,b);
+            indices.push_back(base+0);
+            indices.push_back(base+1);
+            indices.push_back(base+2);
+            indices.push_back(base+2);
+            indices.push_back(base+3);
+            indices.push_back(base+0);
+        };
+
+        // محور السيف: سلسلة من مربعات صغيرة تظهر انحناء
+        int N = 18;
+        for(int i=0;i<N;i++){
+            float t0 = (float)i / (float)N;
+            float t1 = (float)(i+1) / (float)N;
+
+            auto centerPoint = [&](float t){
+                float baseX = baseStartX + cosf(angle) * t * length;
+                float baseY = baseStartY + sinf(angle) * t * length;
+                float bend = 0.18f * sinf(t * PI);  // انحناء بسيط
+                float nxB = -sinf(angle);
+                float nyB =  cosf(angle);
+                return std::pair<float,float>(
+                    baseX + nxB * bend,
+                    baseY + nyB * bend
+                );
+            };
+
+            auto p0 = centerPoint(t0);
+            auto p1 = centerPoint(t1);
+
+            float nx = -sinf(angle);
+            float ny =  cosf(angle);
+
+            float w0 = thickness * (1.0f - 0.35f * t0);
+            float w1 = thickness * (1.0f - 0.35f * t1);
+
+            float x0 = p0.first  + nx * w0;
+            float y0 = p0.second + ny * w0;
+            float x1 = p1.first  + nx * w1;
+            float y1 = p1.second + ny * w1;
+            float x2 = p1.first  - nx * w1;
+            float y2 = p1.second - ny * w1;
+            float x3 = p0.first  - nx * w0;
+            float y3 = p0.second - ny * w0;
+
+            addQuad(x0,y0, x1,y1, x2,y2, x3,y3, 0.02f, bladeR,bladeG,bladeB);
+        }
+
+        // قبضة السيف (مستطيل صغير)
+        float handleLen  = 0.18f;
+        float handleTh   = 0.055f;
+        float hx0 = baseStartX - handleLen*0.5f;
+        float hx1 = baseStartX + handleLen*0.5f;
+        float hy0 = baseStartY - handleTh*0.5f;
+        float hy1 = baseStartY + handleTh*0.5f;
+        addQuad(hx0,hy0, hx1,hy0, hx1,hy1, hx0,hy1, 0.019f, handleR,handleG,handleB);
+
+        // رفع البيانات مؤقتاً ورسم
+        GLuint vaoB, vboB, eboB;
+        glGenVertexArrays(1, &vaoB);
+        glGenBuffers(1, &vboB);
+        glGenBuffers(1, &eboB);
+
+        glBindVertexArray(vaoB);
+        glBindBuffer(GL_ARRAY_BUFFER, vboB);
+        glBufferData(GL_ARRAY_BUFFER,
+                     verts.size()*sizeof(float),
+                     verts.data(),
+                     GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboB);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                     indices.size()*sizeof(unsigned int),
+                     indices.data(),
+                     GL_STATIC_DRAW);
+
+        GLsizei strideB = 6 * sizeof(float);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, strideB, (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, strideB, (void*)(3*sizeof(float)));
+        glEnableVertexAttribArray(1);
+
+        glBindVertexArray(vaoB);
+        glDrawElements(GL_TRIANGLES,
+                       static_cast<GLsizei>(indices.size()),
+                       GL_UNSIGNED_INT,
+                       0);
+        glBindVertexArray(0);
+
+        glDeleteBuffers(1, &vboB);
+        glDeleteBuffers(1, &eboB);
+        glDeleteVertexArrays(1, &vaoB);
+    };
+
+    // موضع السيوف: اثنين متماثلين، واحد على +x وواحد على -x مع زاوية معكوسة
+    float swordsY   = -0.28f;   // نزلناه شوية لانه طلبت كده
+    float swordsX   =  0.33f;   // مكان الاعمدة
+    float swordsLen =  0.85f;
+    float swordsTh  =  0.030f;
+    float swordsAng =  35.0f;   // ميل السيف (سيُعكس بالسالب للنسخة اليسرى)
+
+    // السيف الأيمن
+    drawBlade( swordsX,  swordsY,  swordsAng,  swordsLen, swordsTh, false );
+    // السيف الأيسر (موقع -x وزاوية معكوسة)
+    drawBlade(-swordsX,  swordsY, -swordsAng,  swordsLen, swordsTh, false );
+
+    // =========================
+    // 4) إيقاف الـ stencil
+    // =========================
+    glDisable(GL_STENCIL_TEST);
 }
