@@ -18,4 +18,7 @@ public:
     PirateFlag();
     void init() override;
     void draw() override;
+
+private:
+    float left, right, top, bottom;
 };
