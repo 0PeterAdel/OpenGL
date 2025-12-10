@@ -18,6 +18,8 @@
 #include "../include/flags/RomaniaFlag.hpp"
 #include "../include/flags/UAEFlag.hpp"
 #include "../include/flags/GermanyFlag.hpp"
+#include "../include/flags/BahamasFlag.hpp"
+#include "../include/flags/BrazilFlag.hpp"
 
 
 // Dear ImGui
@@ -216,6 +218,8 @@ int main() {
     manager.registerFlag(new RomaniaFlag());
     manager.registerFlag(new UAEFlag());
     manager.registerFlag(new GermanyFlag());
+    manager.registerFlag(new BahamasFlag());
+    manager.registerFlag(new BrazilFlag());
 
     string selected = "Landing";
     vector<string> menuItems = {
@@ -227,7 +231,9 @@ int main() {
         "Austria",
         "Romania",
         "UAE",
-        "Germany"
+        "Germany",
+        "Bahamas",
+        "Brazil"
     };
 
     glEnable(GL_BLEND);
