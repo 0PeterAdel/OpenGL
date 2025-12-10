@@ -1,5 +1,5 @@
 // src/flags/BrazilFlag.cpp
-// تعريف علم البرازيل باستخدام OpenGL + Mesh
+// تعريف علم البرازيل باستخدام OpenGL + Mesh (VAO / VBO + indices)
 
 #include "../../include/flags/BrazilFlag.hpp"
 #include <glad/glad.h>
@@ -8,124 +8,181 @@
 
 using namespace std;
 
+// الكونستركتور: نمرر اسم العلم للكلاس الأساسي
 BrazilFlag::BrazilFlag()
-    : Flag("Brazil")
+    : Flag("Brazil")    // نفس الاسم اللي بيظهر في الـ menu
 {
 }
 
 /*
     init:
-        - 1) مستطيل أخضر كامل (خلفية)
-        - 2) ماسة صفراء (rhombus) مركزية
-        - 3) دائرة زرقاء مركزية (تقريب بدائرة مكونة من مثلثات)
-        - 4) شريط أبيض تقريبي (مستطيل مائل) على الدائرة
-        - 5) نجوم مبسطة (ثلاث نقاط مثلثية) داخل الدائرة (تأثير تجميلي)
+        - 1) مستطيل أخضر للخلفية
+        - 2) ماسة صفراء (diamond) في المنتصف
+        - 3) دائرة زرقاء في المنتصف (تقريب بعدد كبير من المثلثات)
+        - 4) شريط أبيض مائل داخل حدود الدائرة (عرض أقل)
+        - 5) نجوم صغيرة كثيرة في النصف السفلي من الدائرة
 */
 void BrazilFlag::init() {
     mesh.vertices.clear();
     mesh.indices.clear();
 
-    // base extents
+    // ---------- ألوان العلم ----------
+    const float greenR  = 0.00f, greenG  = 0.45f, greenB  = 0.20f;
+    const float yellowR = 1.00f, yellowG = 0.85f, yellowB = 0.00f;
+    const float blueR   = 0.06f, blueG   = 0.39f, blueB   = 0.64f;
+    const float whiteR  = 1.00f, whiteG  = 1.00f, whiteB = 1.00f;
+
+    // ---------- helper صغير لإضافة مثلث ----------
+    auto addTri = [&](float x1, float y1,
+                      float x2, float y2,
+                      float x3, float y3,
+                      float z,
+                      float r, float g, float b)
+    {
+        // V1
+        mesh.vertices.push_back(x1);
+        mesh.vertices.push_back(y1);
+        mesh.vertices.push_back(z);
+        mesh.vertices.push_back(r);
+        mesh.vertices.push_back(g);
+        mesh.vertices.push_back(b);
+
+        // V2
+        mesh.vertices.push_back(x2);
+        mesh.vertices.push_back(y2);
+        mesh.vertices.push_back(z);
+        mesh.vertices.push_back(r);
+        mesh.vertices.push_back(g);
+        mesh.vertices.push_back(b);
+
+        // V3
+        mesh.vertices.push_back(x3);
+        mesh.vertices.push_back(y3);
+        mesh.vertices.push_back(z);
+        mesh.vertices.push_back(r);
+        mesh.vertices.push_back(g);
+        mesh.vertices.push_back(b);
+    };
+
+    // ---------- 1) الخلفية الخضراء (مستطيل كامل) ----------
     float l = -0.9f, r = 0.9f, t = 0.7f, b = -0.7f;
+    addTri(l, b,  r, b,  l, t,  0.0f,  greenR, greenG, greenB);
+    addTri(r, b,  r, t,  l, t,  0.0f,  greenR, greenG, greenB);
 
-    // colors
-    float greenR = 0.0f, greenG = 0.45f, greenB = 0.2f;
-    float yellowR = 1.0f, yellowG = 0.85f, yellowB = 0.0f;
-    float blueR = 0.06f, blueG = 0.39f, blueB = 0.64f;
-    float whiteR = 1.0f, whiteG = 1.0f, whiteB = 1.0f;
-    float starR = 1.0f, starG = 1.0f, starB = 1.0f;
-
-    // 1) green background (two triangles)
-    float verts_bg[] = {
-        l, b, 0.0f,   greenR, greenG, greenB,
-        r, b, 0.0f,   greenR, greenG, greenB,
-        l, t, 0.0f,   greenR, greenG, greenB,
-
-        r, t, 0.0f,   greenR, greenG, greenB,
-        l, t, 0.0f,   greenR, greenG, greenB,
-        r, b, 0.0f,   greenR, greenG, greenB,
-    };
-    mesh.vertices.assign(verts_bg, verts_bg + sizeof(verts_bg)/sizeof(float));
-
-    // 2) yellow rhombus (diamond) centered
-    // 2) yellow rhombus (diamond) centered
-    float zRhombus = 0.01f;
+    // ---------- 2) الماسة الصفراء (diamond) ----------
     float cx = 0.0f, cy = 0.0f;
-    float rx = 0.5f, ry = 0.35f;
-    // diamond as two triangles: Top Half and Bottom Half
-    float diamond[] = {
-        // Top Half: Left, Right, Top
-        cx - rx, cy, zRhombus,   yellowR, yellowG, yellowB, 
-        cx + rx, cy, zRhombus,   yellowR, yellowG, yellowB, 
-        cx,      cy + ry, zRhombus, yellowR, yellowG, yellowB, 
+    float rx = 0.55f;   // نصف العرض
+    float ry = 0.38f;   // نصف الارتفاع
 
-        // Bottom Half: Left, Right, Bottom
-        cx - rx, cy, zRhombus,   yellowR, yellowG, yellowB, 
-        cx + rx, cy, zRhombus,   yellowR, yellowG, yellowB, 
-        cx,      cy - ry, zRhombus, yellowR, yellowG, yellowB, 
-    };
-    mesh.vertices.insert(mesh.vertices.end(), diamond, diamond + sizeof(diamond)/sizeof(float));
+    float leftX   = cx - rx;
+    float rightX  = cx + rx;
+    float topY    = cy + ry;
+    float bottomY = cy - ry;
 
-    // 3) blue circle (approx using triangle fan)
-    float zCircle = 0.02f;
-    const int circleSegs = 48;
-    vector<float> circleVerts;
-    // center
-    circleVerts.push_back(cx); circleVerts.push_back(cy); circleVerts.push_back(zCircle);
-    circleVerts.push_back(blueR); circleVerts.push_back(blueG); circleVerts.push_back(blueB);
-    float radius = 0.25f;
-    for(int i=0;i<=circleSegs;i++){
-        float a = (float)i / circleSegs * 2.0f * 3.14159265f;
-        float x = cx + cosf(a) * radius;
-        float y = cy + sinf(a) * radius;
-        circleVerts.push_back(x); circleVerts.push_back(y); circleVerts.push_back(zCircle);
-        circleVerts.push_back(blueR); circleVerts.push_back(blueG); circleVerts.push_back(blueB);
+    addTri(leftX,  cy,      rightX, cy,       cx,     topY,    0.01f, yellowR, yellowG, yellowB); // أعلى
+    addTri(leftX,  cy,      cx,     bottomY,  rightX, cy,      0.01f, yellowR, yellowG, yellowB); // أسفل
+
+    // ---------- 3) الدائرة الزرقاء ----------
+    const int segments = 64;
+    float radius  = 0.28f;
+    float circleZ = 0.02f;
+
+    for (int i = 0; i < segments; ++i) {
+        float a0 = (float)i       / segments * 2.0f * 3.14159265f;
+        float a1 = (float)(i + 1) / segments * 2.0f * 3.14159265f;
+
+        float x0 = cx + cosf(a0) * radius;
+        float y0 = cy + sinf(a0) * radius;
+        float x1 = cx + cosf(a1) * radius;
+        float y1 = cy + sinf(a1) * radius;
+
+        addTri(cx, cy,  x0, y0,  x1, y1,  circleZ,  blueR, blueG, blueB);
     }
-    mesh.vertices.insert(mesh.vertices.end(), circleVerts.begin(), circleVerts.end());
 
-    // 4) white band (approximated by a wide quad rotated slightly)
-    // we will add a rectangle centered at cy + small offset and rotated by -15 degrees
-    float zBand = 0.03f;
-    float bandW = 0.9f, bandH = 0.08f;
-    float angle = -15.0f * 3.14159265f / 180.0f;
-    float ca = cosf(angle), sa = sinf(angle);
-    float bw = bandW*0.5f, bh = bandH*0.5f;
-    // local corners of axis-aligned rect then transform
-    float local[4][2] = {{-bw,-bh},{bw,-bh},{bw,bh},{-bw,bh}};
-    float bandVerts[24]; int bi=0;
-    for(int i=0;i<4;i++){
-        float lx = local[i][0], ly = local[i][1] + 0.06f; // small vertical shift
-        float tx = lx*ca - ly*sa + cx;
-        float ty = lx*sa + ly*ca + cy;
-        bandVerts[bi++] = tx; bandVerts[bi++] = ty; bandVerts[bi++] = zBand;
-        bandVerts[bi++] = whiteR; bandVerts[bi++] = whiteG; bandVerts[bi++] = whiteB;
-    }
-    // two triangles for band
-    mesh.vertices.insert(mesh.vertices.end(), bandVerts, bandVerts + 24);
+    // ---------- 4) الشريط الأبيض المائل داخل حدود الدائرة (عرض أقل) ----------
+    /*
+        نظام إحداثيات محلي (x', y'):
+            - x' موازي لاتجاه الشريط.
+            - y' عمودي عليه.
+        نرسم مستطيل من x' = -radius إلى x' = +radius
+        بحيث أطرافه تلمس حدود الدائرة تقريباً.
+    */
+    float bandZ  = 0.03f;
+    float bandH  = 0.06f;      // 👈 تم تقليل السمك (كان 0.10f)
+    float halfH  = bandH * 0.5f;
+    float bandRadius = radius * 0.98f;
 
-    // 5) small stars (very simplified): three white small triangles inside circle
-    float zStar = 0.04f;
-    auto addStarTri = [&](float sx, float sy, float s) {
-        float tri[18] = {
-            sx, sy - s, zStar,  starR, starG, starB,
-            sx - s, sy + s, zStar, starR, starG, starB,
-            sx + s, sy + s, zStar, starR, starG, starB
-        };
-        mesh.vertices.insert(mesh.vertices.end(), tri, tri + 18);
+    float angle  = -15.0f * 3.14159265f / 180.0f;  // زاوية الشريط
+    float ca = cosf(angle);
+    float sa = sinf(angle);
+
+    // إزاحة بسيطة لأسفل داخل الدائرة
+    float centerShiftYPrime = -0.03f;
+
+    auto rotFromLocal = [&](float xp, float yp, float& outX, float& outY) {
+        float yShifted = yp + centerShiftYPrime;
+        outX = cx + (xp * ca - yShifted * sa);
+        outY = cy + (xp * sa + yShifted * ca);
     };
-    addStarTri(-0.05f, 0.05f, 0.02f);
-    addStarTri(0.12f, 0.0f, 0.02f);
-    addStarTri(-0.12f, -0.05f, 0.02f);
 
-    // build indices sequentially
-    unsigned int totalVerts = (unsigned int)(mesh.vertices.size()/6);
-    for(unsigned int i=0;i<totalVerts;i++) mesh.indices.push_back(i);
+    // أربع زوايا المستطيل في (x', y')
+    float Axp = -bandRadius, Ayp = -halfH;
+    float Bxp =  bandRadius, Byp = -halfH;
+    float Cxp =  bandRadius, Cyp =  halfH;
+    float Dxp = -bandRadius, Dyp =  halfH;
 
+    float Ax, Ay, Bx, By, Cx, Cy, Dx, Dy;
+    rotFromLocal(Axp, Ayp, Ax, Ay);
+    rotFromLocal(Bxp, Byp, Bx, By);
+    rotFromLocal(Cxp, Cyp, Cx, Cy);
+    rotFromLocal(Dxp, Dyp, Dx, Dy);
+
+    // المستطيل = مثلثين
+    addTri(Ax, Ay,  Bx, By,  Cx, Cy,  bandZ, whiteR, whiteG, whiteB);
+    addTri(Ax, Ay,  Cx, Cy,  Dx, Dy,  bandZ, whiteR, whiteG, whiteB);
+
+    // ---------- 5) نجوم صغيرة كثيرة في النصف السفلي ----------
+    auto addStar = [&](float sx, float sy, float size) {
+        float sz    = 0.012f * size;   // نجمة صغيرة جداً
+        float starZ = 0.04f;
+
+        // مثلث بسيط صغير كـ star
+        addTri(sx, sy + sz,
+               sx - sz, sy - sz,
+               sx + sz, sy - sz,
+               starZ, whiteR, whiteG, whiteB);
+    };
+
+    // توزيع نجوم أكثر في النصف السفلي من الدائرة (y < 0 تقريباً)
+    addStar(-0.11f, -0.02f, 1.0f);
+    addStar(-0.06f, -0.03f, 0.9f);
+    addStar(-0.02f, -0.04f, 0.8f);
+    addStar( 0.02f, -0.05f, 0.9f);
+    addStar( 0.06f, -0.06f, 0.8f);
+    addStar( 0.10f, -0.07f, 0.9f);
+
+    addStar(-0.09f, -0.08f, 0.7f);
+    addStar(-0.04f, -0.09f, 0.8f);
+    addStar( 0.00f, -0.10f, 0.7f);
+    addStar( 0.05f, -0.11f, 0.9f);
+    addStar( 0.09f, -0.09f, 0.8f);
+    addStar( 0.13f, -0.06f, 0.7f);
+
+    // ---------- بناء الـ indices بالتسلسل ----------
+    unsigned int totalVerts = static_cast<unsigned int>(mesh.vertices.size() / 6); // كل vertex = 6 float
+    for (unsigned int i = 0; i < totalVerts; ++i) {
+        mesh.indices.push_back(i);
+    }
+
+    // رفع البيانات على الـ GPU
     mesh.upload();
 }
 
 void BrazilFlag::draw() {
     glBindVertexArray(mesh.VAO);
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(mesh.indices.size()), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES,
+                   static_cast<GLsizei>(mesh.indices.size()),
+                   GL_UNSIGNED_INT,
+                   0);
     glBindVertexArray(0);
 }
