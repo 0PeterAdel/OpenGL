@@ -48,38 +48,44 @@ void BrazilFlag::init() {
     mesh.vertices.assign(verts_bg, verts_bg + sizeof(verts_bg)/sizeof(float));
 
     // 2) yellow rhombus (diamond) centered
+    // 2) yellow rhombus (diamond) centered
+    float zRhombus = 0.01f;
     float cx = 0.0f, cy = 0.0f;
     float rx = 0.5f, ry = 0.35f;
-    // diamond as two triangles (but better to do two triangles twice to form full diamond)
+    // diamond as two triangles: Top Half and Bottom Half
     float diamond[] = {
-        cx - rx, cy, 0.0f,   yellowR, yellowG, yellowB, // left
-        cx + rx, cy, 0.0f,   yellowR, yellowG, yellowB, // right
-        cx,      cy + ry,0.0f, yellowR, yellowG, yellowB, // top
+        // Top Half: Left, Right, Top
+        cx - rx, cy, zRhombus,   yellowR, yellowG, yellowB, 
+        cx + rx, cy, zRhombus,   yellowR, yellowG, yellowB, 
+        cx,      cy + ry, zRhombus, yellowR, yellowG, yellowB, 
 
-        cx + rx, cy, 0.0f,   yellowR, yellowG, yellowB, // right
-        cx,      cy - ry,0.0f, yellowR, yellowG, yellowB, // bottom
-        cx,      cy + ry,0.0f, yellowR, yellowG, yellowB, // top
+        // Bottom Half: Left, Right, Bottom
+        cx - rx, cy, zRhombus,   yellowR, yellowG, yellowB, 
+        cx + rx, cy, zRhombus,   yellowR, yellowG, yellowB, 
+        cx,      cy - ry, zRhombus, yellowR, yellowG, yellowB, 
     };
     mesh.vertices.insert(mesh.vertices.end(), diamond, diamond + sizeof(diamond)/sizeof(float));
 
     // 3) blue circle (approx using triangle fan)
+    float zCircle = 0.02f;
     const int circleSegs = 48;
     vector<float> circleVerts;
     // center
-    circleVerts.push_back(cx); circleVerts.push_back(cy); circleVerts.push_back(0.01f);
+    circleVerts.push_back(cx); circleVerts.push_back(cy); circleVerts.push_back(zCircle);
     circleVerts.push_back(blueR); circleVerts.push_back(blueG); circleVerts.push_back(blueB);
     float radius = 0.25f;
     for(int i=0;i<=circleSegs;i++){
         float a = (float)i / circleSegs * 2.0f * 3.14159265f;
         float x = cx + cosf(a) * radius;
         float y = cy + sinf(a) * radius;
-        circleVerts.push_back(x); circleVerts.push_back(y); circleVerts.push_back(0.01f);
+        circleVerts.push_back(x); circleVerts.push_back(y); circleVerts.push_back(zCircle);
         circleVerts.push_back(blueR); circleVerts.push_back(blueG); circleVerts.push_back(blueB);
     }
     mesh.vertices.insert(mesh.vertices.end(), circleVerts.begin(), circleVerts.end());
 
     // 4) white band (approximated by a wide quad rotated slightly)
     // we will add a rectangle centered at cy + small offset and rotated by -15 degrees
+    float zBand = 0.03f;
     float bandW = 0.9f, bandH = 0.08f;
     float angle = -15.0f * 3.14159265f / 180.0f;
     float ca = cosf(angle), sa = sinf(angle);
@@ -91,18 +97,19 @@ void BrazilFlag::init() {
         float lx = local[i][0], ly = local[i][1] + 0.06f; // small vertical shift
         float tx = lx*ca - ly*sa + cx;
         float ty = lx*sa + ly*ca + cy;
-        bandVerts[bi++] = tx; bandVerts[bi++] = ty; bandVerts[bi++] = 0.02f;
+        bandVerts[bi++] = tx; bandVerts[bi++] = ty; bandVerts[bi++] = zBand;
         bandVerts[bi++] = whiteR; bandVerts[bi++] = whiteG; bandVerts[bi++] = whiteB;
     }
     // two triangles for band
     mesh.vertices.insert(mesh.vertices.end(), bandVerts, bandVerts + 24);
 
     // 5) small stars (very simplified): three white small triangles inside circle
+    float zStar = 0.04f;
     auto addStarTri = [&](float sx, float sy, float s) {
         float tri[18] = {
-            sx, sy - s, 0.03f,  starR, starG, starB,
-            sx - s, sy + s, 0.03f, starR, starG, starB,
-            sx + s, sy + s, 0.03f, starR, starG, starB
+            sx, sy - s, zStar,  starR, starG, starB,
+            sx - s, sy + s, zStar, starR, starG, starB,
+            sx + s, sy + s, zStar, starR, starG, starB
         };
         mesh.vertices.insert(mesh.vertices.end(), tri, tri + 18);
     };
